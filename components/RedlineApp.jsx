@@ -7,11 +7,26 @@ import React, { useState, useMemo, useCallback, useRef, useEffect } from "react"
 --------------------------------------------------------- */
 const COMMENT_TYPES = ["Clarity", "Repetition", "Pacing", "Style", "Continuity", "Character", "Worldbuilding", "Other"];
 const PRIORITIES = ["Low", "Medium", "High"];
+const MOBILE_BREAKPOINT = 768;
+
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+  return isMobile;
+}
 
 /* ---------------------------------------------------------
    MAIN APP
 --------------------------------------------------------- */
 export default function RedlineApp() {
+  const isMobile = useIsMobile();
+  const [chaptersOpen, setChaptersOpen] = useState(false);
+  const [commentsOpen, setCommentsOpen] = useState(false);
   const [theme, setTheme] = useState("dark");
   const [manuscript, setManuscript] = useState(null); // null until loaded
   const [chapterList, setChapterList] = useState([]);
@@ -223,35 +238,83 @@ export default function RedlineApp() {
       <link rel="preconnect" href="https://fonts.googleapis.com" />
       <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@400;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 24px", borderBottom: `1px solid ${colors.border}`, background: colors.panel }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ width: 8, height: 18, background: colors.accent, borderRadius: 1 }} />
-          <span style={{ fontWeight: 600, fontSize: 16, letterSpacing: 0.2 }}>Redline</span>
-          <span style={{ fontSize: 12, color: colors.textMuted, marginLeft: 8 }}>
-            The American Foreign Legion — {manuscript.length} passages, {chapterList.length} chapters
-          </span>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: isMobile ? "12px 16px" : "14px 24px", borderBottom: `1px solid ${colors.border}`, background: colors.panel, gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+          {isMobile && (
+            <button onClick={() => setChaptersOpen(true)} aria-label="Open chapter list" style={{ ...iconBtnStyle(colors) }}>
+              ☰
+            </button>
+          )}
+          <div style={{ width: 8, height: 18, background: colors.accent, borderRadius: 1, flexShrink: 0 }} />
+          <span style={{ fontWeight: 600, fontSize: 16, letterSpacing: 0.2, flexShrink: 0 }}>Redline</span>
+          {!isMobile && (
+            <span style={{ fontSize: 12, color: colors.textMuted, marginLeft: 8, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              The American Foreign Legion — {manuscript.length} passages, {chapterList.length} chapters
+            </span>
+          )}
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <button onClick={exportCsv} disabled={comments.length === 0} style={{ ...btnStyle(colors), opacity: comments.length === 0 ? 0.5 : 1 }}>
-            Export comments (CSV)
-          </button>
-          <input
-            type="text"
-            value={readerName}
-            onChange={(e) => setReaderName(e.target.value)}
-            placeholder="Your name"
-            style={{ ...selectStyle(colors), width: 120 }}
-          />
-          <button onClick={() => setTheme(isDark ? "light" : "dark")} style={btnStyle(colors)}>
-            {isDark ? "Light mode" : "Dark mode"}
-          </button>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
+          {!isMobile && (
+            <>
+              <button onClick={exportCsv} disabled={comments.length === 0} style={{ ...btnStyle(colors), opacity: comments.length === 0 ? 0.5 : 1 }}>
+                Export comments (CSV)
+              </button>
+              <input
+                type="text"
+                value={readerName}
+                onChange={(e) => setReaderName(e.target.value)}
+                placeholder="Your name"
+                style={{ ...selectStyle(colors), width: 120 }}
+              />
+              <button onClick={() => setTheme(isDark ? "light" : "dark")} style={btnStyle(colors)}>
+                {isDark ? "Light mode" : "Dark mode"}
+              </button>
+            </>
+          )}
+          {isMobile && (
+            <button onClick={() => setCommentsOpen(true)} aria-label="Open comments" style={{ ...iconBtnStyle(colors), position: "relative" }}>
+              💬
+              {comments.length > 0 && (
+                <span style={{ position: "absolute", top: -2, right: -2, fontSize: 9, background: colors.accent, color: "#fff", borderRadius: 8, padding: "0 4px", lineHeight: "14px", minWidth: 14, textAlign: "center" }}>
+                  {comments.length}
+                </span>
+              )}
+            </button>
+          )}
         </div>
       </div>
 
-      <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
+      <div style={{ display: "flex", flex: 1, minHeight: 0, position: "relative" }}>
+        {/* Backdrop for mobile overlays */}
+        {isMobile && (chaptersOpen || commentsOpen) && (
+          <div
+            onClick={() => { setChaptersOpen(false); setCommentsOpen(false); }}
+            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 20 }}
+          />
+        )}
+
         {/* CHAPTER NAV */}
-        <div style={{ width: 200, borderRight: `1px solid ${colors.border}`, background: colors.panelAlt, overflowY: "auto", padding: "16px 0", flexShrink: 0 }}>
-          <div style={{ fontSize: 11, color: colors.textMuted, fontWeight: 500, padding: "0 16px 8px", letterSpacing: 0.4 }}>CHAPTERS</div>
+        <div
+          style={
+            isMobile
+              ? {
+                  position: "fixed", top: 0, bottom: 0, left: 0, width: "min(280px, 80vw)",
+                  background: colors.panelAlt, overflowY: "auto", padding: "16px 0", zIndex: 21,
+                  transform: chaptersOpen ? "translateX(0)" : "translateX(-100%)",
+                  transition: "transform 0.2s ease", boxShadow: chaptersOpen ? "2px 0 12px rgba(0,0,0,0.2)" : "none",
+                }
+              : { width: 200, borderRight: `1px solid ${colors.border}`, background: colors.panelAlt, overflowY: "auto", padding: "16px 0", flexShrink: 0 }
+          }
+        >
+          {isMobile && (
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 16px 12px" }}>
+              <span style={{ fontSize: 11, color: colors.textMuted, fontWeight: 500, letterSpacing: 0.4 }}>CHAPTERS</span>
+              <button onClick={() => setChaptersOpen(false)} aria-label="Close" style={iconBtnStyle(colors)}>✕</button>
+            </div>
+          )}
+          {!isMobile && (
+            <div style={{ fontSize: 11, color: colors.textMuted, fontWeight: 500, padding: "0 16px 8px", letterSpacing: 0.4 }}>CHAPTERS</div>
+          )}
           {chapterList.map((ch) => {
             const isActive = ch === activeChapter;
             const cCount = comments.filter((cm) => {
@@ -261,9 +324,9 @@ export default function RedlineApp() {
             return (
               <div
                 key={ch}
-                onClick={() => { setActiveChapter(ch); setSelectedPassage(null); }}
+                onClick={() => { setActiveChapter(ch); setSelectedPassage(null); setChaptersOpen(false); }}
                 style={{
-                  padding: "8px 16px",
+                  padding: "10px 16px",
                   cursor: "pointer",
                   fontSize: 13,
                   background: isActive ? colors.accentSoft : "transparent",
@@ -284,10 +347,10 @@ export default function RedlineApp() {
         </div>
 
         {/* MANUSCRIPT READER */}
-        <div style={{ flex: "1 1 0", overflowY: "auto", padding: "40px 48px" }}>
+        <div style={{ flex: "1 1 0", overflowY: "auto", padding: isMobile ? "20px 16px" : "40px 48px", minWidth: 0 }}>
           <div style={{ maxWidth: 680, margin: "0 auto" }}>
-            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 24 }}>
-              <h2 style={{ fontFamily: serif, fontSize: 24, fontWeight: 600, color: colors.text, margin: 0 }}>{activeChapter}</h2>
+            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 4 }}>
+              <h2 style={{ fontFamily: serif, fontSize: isMobile ? 20 : 24, fontWeight: 600, color: colors.text, margin: 0 }}>{activeChapter}</h2>
               <span style={{ fontSize: 12, color: colors.textMuted }}>{chapterWordCounts[activeChapter] || 0} words</span>
             </div>
             {visiblePassages.map((p) => {
@@ -296,10 +359,14 @@ export default function RedlineApp() {
               return (
                 <p
                   key={p.id}
-                  onClick={() => setSelectedPassage(p.id === selectedPassage ? null : p.id)}
+                  onClick={() => {
+                    const next = p.id === selectedPassage ? null : p.id;
+                    setSelectedPassage(next);
+                    if (isMobile && next) setCommentsOpen(true);
+                  }}
                   style={{
                     fontFamily: serif,
-                    fontSize: 17,
+                    fontSize: isMobile ? 16 : 17,
                     lineHeight: 1.75,
                     marginBottom: 14,
                     cursor: "pointer",
@@ -339,9 +406,45 @@ export default function RedlineApp() {
         </div>
 
         {/* RIGHT RAIL */}
-        <div style={{ width: 380, borderLeft: `1px solid ${colors.border}`, background: colors.panel, overflowY: "auto", padding: "20px 0", flexShrink: 0 }}>
+        <div
+          style={
+            isMobile
+              ? {
+                  position: "fixed", top: 0, bottom: 0, right: 0, width: "min(380px, 88vw)",
+                  background: colors.panel, overflowY: "auto", padding: "16px 0", zIndex: 21,
+                  transform: commentsOpen ? "translateX(0)" : "translateX(100%)",
+                  transition: "transform 0.2s ease", boxShadow: commentsOpen ? "-2px 0 12px rgba(0,0,0,0.2)" : "none",
+                }
+              : { width: 380, borderLeft: `1px solid ${colors.border}`, background: colors.panel, overflowY: "auto", padding: "20px 0", flexShrink: 0 }
+          }
+        >
+          {isMobile && (
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 16px 12px" }}>
+              <span style={{ fontSize: 11, color: colors.textMuted, fontWeight: 500, letterSpacing: 0.4 }}>COMMENTS</span>
+              <button onClick={() => setCommentsOpen(false)} aria-label="Close" style={iconBtnStyle(colors)}>✕</button>
+            </div>
+          )}
+
+          {isMobile && (
+            <div style={{ padding: "0 16px 16px", borderBottom: `1px solid ${colors.border}`, marginBottom: 16, display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <input
+                type="text"
+                value={readerName}
+                onChange={(e) => setReaderName(e.target.value)}
+                placeholder="Your name"
+                style={{ ...selectStyle(colors), flex: "1 1 120px" }}
+              />
+              <button onClick={() => setTheme(isDark ? "light" : "dark")} style={{ ...btnStyle(colors), flex: "1 1 100px" }}>
+                {isDark ? "Light mode" : "Dark mode"}
+              </button>
+              <button onClick={exportCsv} disabled={comments.length === 0} style={{ ...btnStyle(colors), flex: "1 1 100%", opacity: comments.length === 0 ? 0.5 : 1 }}>
+                Export comments (CSV)
+              </button>
+            </div>
+          )}
+
           {selectedPassage && (
-            <div style={{ padding: "0 20px 20px", borderBottom: `1px solid ${colors.border}`, marginBottom: 16 }}>
+            <div style={{ padding: isMobile ? "0 16px 20px" : "0 20px 20px", borderBottom: `1px solid ${colors.border}`, marginBottom: 16 }}>
               <div style={{ fontSize: 12, color: colors.textMuted, marginBottom: 8 }}>New comment on selected passage</div>
               <textarea
                 value={draftText}
@@ -366,7 +469,7 @@ export default function RedlineApp() {
             </div>
           )}
 
-          <div style={{ padding: "0 20px" }}>
+          <div style={{ padding: isMobile ? "0 16px" : "0 20px" }}>
             <div style={{ fontSize: 12, color: colors.textMuted, marginBottom: 10, fontWeight: 500 }}>
               ALL COMMENTS {!commentsLoading && `(${comments.length})`}
             </div>
@@ -377,7 +480,7 @@ export default function RedlineApp() {
               <div style={{ fontSize: 12, color: colors.accent }}>{commentsError}</div>
             )}
             {!commentsLoading && !commentsError && comments.length === 0 && (
-              <div style={{ fontSize: 12, color: colors.textMuted }}>Click any passage in the reader to leave the first comment.</div>
+              <div style={{ fontSize: 12, color: colors.textMuted }}>Tap any passage in the reader to leave the first comment.</div>
             )}
             {[...comments].reverse().map((c) => (
               <CommentCard
@@ -385,7 +488,11 @@ export default function RedlineApp() {
                 comment={c}
                 manuscript={manuscript}
                 colors={colors}
-                onJump={(passageId, chapter) => { setActiveChapter(chapter); setSelectedPassage(passageId); }}
+                onJump={(passageId, chapter) => {
+                  setActiveChapter(chapter);
+                  setSelectedPassage(passageId);
+                  if (isMobile) setCommentsOpen(false);
+                }}
               />
             ))}
           </div>
@@ -393,6 +500,14 @@ export default function RedlineApp() {
       </div>
     </div>
   );
+}
+
+function iconBtnStyle(colors) {
+  return {
+    width: 36, height: 36, borderRadius: 6, border: `1px solid ${colors.border}`,
+    background: "transparent", color: colors.text, cursor: "pointer", fontSize: 16,
+    display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+  };
 }
 
 function ChapterNavButton({ label, target, onClick, colors, align }) {
